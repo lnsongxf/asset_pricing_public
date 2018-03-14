@@ -1,6 +1,7 @@
 import numpy as np
 from by_model import BY
 import matplotlib.pyplot as plt
+import unicodedata
 
 
 def generate_plot_by(param1,                # string
@@ -9,9 +10,13 @@ def generate_plot_by(param1,                # string
                      param2,                # string 
                      p2_reduction_factor,   # min value for param2
                      p2_boost_factor,       # min value for param2
+                     one_step=False,        # one step contraction coeff
                      coords=(-225, 30),     # relative location of text
                      G=3):                 # grid size for x and y axes
 
+    # Normalize unicode identifiers
+    param1 = unicodedata.normalize('NFKC', param1)
+    param2 = unicodedata.normalize('NFKC', param2)
 
     # Allocate arrays, set up parameter grid
     R = np.empty((G, G))
@@ -21,10 +26,10 @@ def generate_plot_by(param1,                # string
     param1_value = by.__getattribute__(param1)
     param2_value = by.__getattribute__(param2)
 
-    p1_min = param1_value * (1 - p1_reduction_factor)
-    p1_max = param1_value * (1 + p1_boost_factor)
-    p2_min = param2_value * (1 - p2_reduction_factor)
-    p2_max = param2_value * (1 + p2_boost_factor)
+    p1_min = param1_value * p1_reduction_factor
+    p1_max = param1_value * p1_boost_factor
+    p2_min = param2_value * p2_reduction_factor
+    p2_max = param2_value * p2_boost_factor
 
     x_vals = np.linspace(p1_min, p1_max, G)   # values for param1 
     y_vals = np.linspace(p2_min, p2_max, G)   # values for param2
@@ -49,12 +54,16 @@ def generate_plot_by(param1,                # string
             if must_recompute_utility:
                 by.compute_grid_and_solution()
 
-            r = by.compute_spec_rad(n=60, num_reps=200)
+            if one_step:
+                r = by.compute_spec_rad_with_sup(n=1, num_reps=2000)
+            else:
+                r = by.compute_spec_rad(n=500, num_reps=2000)
+
             print(f"r = {r}")
             R[i, j] = r
 
     # Now the plot
-    point_location=(param1_value, param2_value),
+    point_location=(param1_value, param2_value)
 
     fig, ax = plt.subplots(figsize=(10, 5.7))
 
@@ -64,15 +73,15 @@ def generate_plot_by(param1,                # string
     plt.clabel(ctr1, inline=1, fontsize=13)
     plt.colorbar(cs1, ax=ax, format="%.6f")
 
-    # ax.annotate("Bansal-Yaron", 
-             # xy=point_location,  
-             # xycoords="data",
-             # xytext=coords,
-             # textcoords="offset points",
-             # fontsize=12,
-             # arrowprops={"arrowstyle" : "->"})
+    ax.annotate("Bansal-Yaron", 
+             xy=point_location,  
+             xycoords="data",
+             xytext=coords,
+             textcoords="offset points",
+             fontsize=12,
+             arrowprops={"arrowstyle" : "->"})
 
-    #ax.plot(*point_location,  "ko", alpha=0.6)
+    ax.plot(*point_location,  "ko", alpha=0.6)
 
     ax.set_title("Spectral radius")
     ax.set_xlabel(param1, fontsize=16)

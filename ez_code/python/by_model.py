@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*- 
 """
 Computes recursive utility, Bansal--Yaron model
 
@@ -27,7 +26,6 @@ default_params = (0.998,     # β
                  0.0015,     # μ_d
                  3.0,        # α
                  4.5)        # ϕ_d
-
 
 
 
