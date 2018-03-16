@@ -3,7 +3,6 @@ from by_model import BY
 import matplotlib.pyplot as plt
 import unicodedata
 
-
 def generate_plot_by(param1,                # string
                      p1_reduction_factor,   # min value for param1
                      p1_boost_factor,       # min value for param1
@@ -11,6 +10,8 @@ def generate_plot_by(param1,                # string
                      p2_reduction_factor,   # min value for param2
                      p2_boost_factor,       # min value for param2
                      one_step=False,        # one step contraction coeff
+                     xlabel=None,           # optional
+                     ylabel=None,           # optional
                      coords=(-225, 30),     # relative location of text
                      G=3):                 # grid size for x and y axes
 
@@ -21,7 +22,7 @@ def generate_plot_by(param1,                # string
     # Allocate arrays, set up parameter grid
     R = np.empty((G, G))
 
-    by = BY(read_from_file=True)
+    by = BY(z_grid_size=10, σ_grid_size=10)
 
     param1_value = by.__getattribute__(param1)
     param2_value = by.__getattribute__(param2)
@@ -34,8 +35,6 @@ def generate_plot_by(param1,                # string
     x_vals = np.linspace(p1_min, p1_max, G)   # values for param1 
     y_vals = np.linspace(p2_min, p2_max, G)   # values for param2
 
-    print(f"x_vals = {x_vals}")
-    print(f"y_vals = {y_vals}")
 
     # Recompute utility, unless both parameters only relate to dividends
     must_recompute_utility = True
@@ -46,9 +45,6 @@ def generate_plot_by(param1,                # string
     for i, x in enumerate(x_vals):
         for j, y in enumerate(y_vals):
 
-            print(param1 + f" = {x}")
-            print(param2 + f" = {y}")
-
             by.__setattr__(param1, x)
             by.__setattr__(param2, y)
             if must_recompute_utility:
@@ -57,9 +53,8 @@ def generate_plot_by(param1,                # string
             if one_step:
                 r = by.compute_spec_rad_with_sup(n=1, num_reps=2000)
             else:
-                r = by.compute_spec_rad(n=500, num_reps=2000)
+                r = by.compute_spec_rad(n=1000, num_reps=2000)
 
-            print(f"r = {r}")
             R[i, j] = r
 
     # Now the plot
@@ -83,14 +78,29 @@ def generate_plot_by(param1,                # string
 
     ax.plot(*point_location,  "ko", alpha=0.6)
 
-    ax.set_title("Spectral radius")
-    ax.set_xlabel(param1, fontsize=16)
-    ax.set_ylabel(param2, fontsize=16)
+    if one_step:
+        title = "One step contraction coefficient"
+    else:
+        title = "Spectral radius"
+
+    ax.set_title(title)
+
+    if xlabel is None:
+        xlabel = param1
+    ax.set_xlabel(xlabel, fontsize=16)
+
+    if ylabel is None:
+        ylabel = param2
+    ax.set_ylabel(ylabel, fontsize=16)
 
     ax.ticklabel_format(useOffset=False)
 
-    filename = param1 + param2 + "by" + "_" + ".pdf"
-    plt.savefig(filename)
+    if one_step:
+        filename = param1 + param2 + "by" + "_onestep_" + ".pdf"
+    else:
+        filename = param1 + param2 + "by" + "_" + ".pdf"
 
+    plt.savefig(filename)
+    
     plt.show()
 
