@@ -1,5 +1,5 @@
 import numpy as np
-from by_model import BY
+from by_model import *
 import matplotlib.pyplot as plt
 import unicodedata
 
@@ -9,6 +9,8 @@ def generate_plot_by(param1,                # string
                      param2,                # string 
                      p2_reduction_factor,   # min value for param2
                      p2_boost_factor,       # min value for param2
+                     z_grid_size=5,
+                     σ_grid_size=5,
                      one_step=False,        # one step contraction coeff
                      xlabel=None,           # optional
                      ylabel=None,           # optional
@@ -22,7 +24,7 @@ def generate_plot_by(param1,                # string
     # Allocate arrays, set up parameter grid
     R = np.empty((G, G))
 
-    by = BY(z_grid_size=10, σ_grid_size=10)
+    by = BY()
 
     param1_value = by.__getattribute__(param1)
     param2_value = by.__getattribute__(param2)
@@ -35,11 +37,7 @@ def generate_plot_by(param1,                # string
     x_vals = np.linspace(p1_min, p1_max, G)   # values for param1 
     y_vals = np.linspace(p2_min, p2_max, G)   # values for param2
 
-
-    # Recompute utility, unless both parameters only relate to dividends
-    must_recompute_utility = True
-    if by.is_dividend_parameter(param1) and by.is_dividend_parameter(param2):
-        must_recompute_utility = False
+    w = np.ones((z_grid_size, σ_grid_size))
 
     # Loop through parameters computing test coefficient
     for i, x in enumerate(x_vals):
@@ -47,14 +45,25 @@ def generate_plot_by(param1,                # string
 
             by.__setattr__(param1, x)
             by.__setattr__(param2, y)
-            if must_recompute_utility:
-                by.compute_grid_and_solution()
+
+            params = by.pack_params()
 
             if one_step:
-                r = by.compute_spec_rad_with_sup(n=1, num_reps=2000)
+                r, w = compute_spec_rad(params, 
+                                     w,
+                                     z_grid_size=z_grid_size, 
+                                     σ_grid_size=z_grid_size, 
+                                     n=1, 
+                                     num_reps=2000,
+                                     with_sup=True)
             else:
-                r = by.compute_spec_rad(n=1000, num_reps=2000)
-
+                r, w = compute_spec_rad(params, 
+                                     w,
+                                     z_grid_size=z_grid_size, 
+                                     σ_grid_size=z_grid_size, 
+                                     n=750, 
+                                     num_reps=2000,
+                                     with_sup=False)
             R[i, j] = r
 
     # Now the plot
