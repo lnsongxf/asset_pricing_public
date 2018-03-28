@@ -80,9 +80,9 @@ class BY:
 
     def compute_recursive_utility(self,
                                   w_init=None, 
-                                  tol=1e-5, 
-                                  print_skip=50,
-                                  max_iter=10000):
+                                  tol=1e-4, 
+                                  max_iter=10000,
+                                  verbose=True):
         """
         Solves for the fixed point of T.
 
@@ -99,10 +99,13 @@ class BY:
         while error > tol and i < max_iter:
             w_next = T(params, w, self.z_grid, self.σ_grid, self.shocks)
             error = np.max(np.abs(w - w_next))
-            if i % print_skip == 0:
-                print(f"error at iterate {i} = {error}")
             i += 1
             w = w_next
+
+        if verbose and i < max_iter:
+            print(f"Converged in {i} iterations")
+        if i == max_iter:
+            print(f"Hit iteration upper bound!")
 
         self.w_star = w
 
@@ -120,16 +123,16 @@ class BY:
         if z_0 is None:
             z_0 = 0.0
         if σ_0 is None:
-            σ_0 is np.sqrt(self.d / (1 - self.v))
+            σ_0 = np.sqrt(self.d / (1 - self.v))
 
         if with_sup:
             sup_val = -np.inf
-            for z in z_grid:
-                for σ in σ_grid:
+            for z in self.z_grid:
+                for σ in self.σ_grid:
                     s = compute_spec_rad_given_utility(params, 
-                                                       z_grid,
-                                                       σ_grid,
-                                                       w_star,
+                                                       self.z_grid,
+                                                       self.σ_grid,
+                                                       self.w_star,
                                                        n, 
                                                        z, 
                                                        σ, 
@@ -138,9 +141,9 @@ class BY:
             rV = sup_val
         else:
             rV = compute_spec_rad_given_utility(params, 
-                                                z_grid,
-                                                σ_grid,
-                                                w_star,
+                                                self.z_grid,
+                                                self.σ_grid,
+                                                self.w_star,
                                                 n, 
                                                 z_0, 
                                                 σ_0, 
@@ -184,7 +187,7 @@ def T(params, w, z_grid, σ_grid, shocks):
             mf = np.exp((1 - γ) * (μ_c + z) + (1 - γ)**2 * σ**2 / 2)
             g_expec = 0.0
 
-            for k in prange(num_shocks):
+            for k in range(num_shocks):
                 ε1, ε2 = shocks[:, k]
                 zp = ρ * z + ϕ_z * σ * ε1
                 σp2 = np.maximum(v * σ**2 + d + ϕ_σ * ε2, 0)
@@ -262,7 +265,7 @@ def build_grid_and_shocks(params,
                           z_grid_size,
                           σ_grid_size,
                           mc_draw_size,
-                          ts_length=8000,  # sim used when building grid
+                          ts_length=100_000,  # sim used when building grid
                           seed=1234):
 
     # Unpack all params

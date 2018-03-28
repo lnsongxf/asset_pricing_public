@@ -1,8 +1,8 @@
-from numba import njit
+from numba import jit
 import numpy as np
 
 
-@njit(cache=True)
+@jit(nopython=True)
 def lininterp_2d(x_grid, y_grid, vals, s):
     """
     Fast 2D interpolation.  Uses linear extrapolation for points outside the
@@ -31,8 +31,8 @@ def lininterp_2d(x_grid, y_grid, vals, s):
     s_1 = s[1]
 
     # (sn_1, ..., sn_d) : normalized evaluation point (in [0,1] inside the grid)
-    sn_0 = (s_0 - ax)/(bx - ax)
-    sn_1 = (s_1 - ay)/(by - ay)
+    sn_0 = (s_0 - ax) / (bx - ax)
+    sn_1 = (s_1 - ay) / (by - ay)
 
     # q_k : index of the interval "containing" s_k
     q_0 = max(min(int(sn_0 *(nx - 1)), (nx - 2) ), 0)
