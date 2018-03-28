@@ -48,22 +48,25 @@ def generate_plot_by(param1,                # string
 
             params = by.pack_params()
 
+            z_grid, σ_grid, shocks = build_grid_and_shocks(params,
+                                                           z_grid_size, 
+                                                           σ_grid_size)
+
             if one_step:
-                r, w = compute_spec_rad(params, 
-                                     w,
-                                     z_grid_size=z_grid_size, 
-                                     σ_grid_size=z_grid_size, 
-                                     n=1, 
-                                     num_reps=2000,
-                                     with_sup=True)
+                with_sup = True
+                n = 1
             else:
+                with_sup = False
+                n = 750
+
                 r, w = compute_spec_rad(params, 
                                      w,
-                                     z_grid_size=z_grid_size, 
-                                     σ_grid_size=z_grid_size, 
-                                     n=750, 
+                                     z_grid, 
+                                     σ_grid, 
+                                     shocks,
+                                     n=n, 
                                      num_reps=2000,
-                                     with_sup=False)
+                                     with_sup=with_sup)
             R[i, j] = r
 
     # Now the plot

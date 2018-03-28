@@ -37,22 +37,6 @@ default_params = (0.998,     # β
                  4.5)        # ϕ_d
 
 
-class BY:
-
-    def __init__(self, params=default_params):
-
-        # Unpack all params
-        self.β, self.γ, self.ψ, self.μ_c, self.ρ, self.ϕ_z, \
-                self.v, self.d, self.ϕ_σ, \
-                self.μ_d, self.α, self.ϕ_d = params
-
-    def pack_params(self):
-        params = self.β, self.γ, self.ψ, self.μ_c, self.ρ, self.ϕ_z, \
-            self.v, self.d, self.ϕ_σ, \
-            self.μ_d, self.α, self.ϕ_d 
-        return params
-
-
 @jit(nopython=True)
 def quantile(x, q):
     """
@@ -66,7 +50,106 @@ def quantile(x, q):
     return x[int(q * k)]
 
 
-@jit(nopython=True)
+
+class BY:
+
+    def __init__(self, params=default_params, 
+                       z_grid_size=6, 
+                       σ_grid_size=6,
+                       mc_draw_size=2500):
+
+        # Unpack all params
+        self.β, self.γ, self.ψ, self.μ_c, self.ρ, self.ϕ_z, \
+                self.v, self.d, self.ϕ_σ, \
+                self.μ_d, self.α, self.ϕ_d = params
+
+        # Build grid and draw shocks for Monte Carlo
+        self.z_grid, self.σ_grid, self.shocks = \
+                build_grid_and_shocks(self.pack_params(), 
+                                      z_grid_size,
+                                      σ_grid_size,
+                                      mc_draw_size)
+        self.w_star = None
+
+    def pack_params(self):
+        params = self.β, self.γ, self.ψ, self.μ_c, self.ρ, self.ϕ_z, \
+            self.v, self.d, self.ϕ_σ, \
+            self.μ_d, self.α, self.ϕ_d 
+        return params
+
+
+    def compute_recursive_utility(self,
+                                  w_init=None, 
+                                  tol=1e-5, 
+                                  print_skip=50,
+                                  max_iter=10000):
+        """
+        Solves for the fixed point of T.
+
+        """
+
+        if w_init is None:
+            w = np.ones((len(self.z_grid), len(self.σ_grid)))
+        else:
+            w = w_init
+
+        params = self.pack_params()
+        error = tol + 1
+        i = 1
+        while error > tol and i < max_iter:
+            w_next = T(params, w, self.z_grid, self.σ_grid, self.shocks)
+            error = np.max(np.abs(w - w_next))
+            if i % print_skip == 0:
+                print(f"error at iterate {i} = {error}")
+            i += 1
+            w = w_next
+
+        self.w_star = w
+
+
+    def compute_spec_rad(self, 
+                         z_0=None,
+                         σ_0=None,
+                         n=750, 
+                         num_reps=2000,
+                         with_sup=False):
+
+        assert self.w_star is not None, "w_star has not been initialized"
+        params = self.pack_params()
+
+        if z_0 is None:
+            z_0 = 0.0
+        if σ_0 is None:
+            σ_0 is np.sqrt(self.d / (1 - self.v))
+
+        if with_sup:
+            sup_val = -np.inf
+            for z in z_grid:
+                for σ in σ_grid:
+                    s = compute_spec_rad_given_utility(params, 
+                                                       z_grid,
+                                                       σ_grid,
+                                                       w_star,
+                                                       n, 
+                                                       z, 
+                                                       σ, 
+                                                       num_reps)
+                    sup_val = max(sup_val, s)
+            rV = sup_val
+        else:
+            rV = compute_spec_rad_given_utility(params, 
+                                                z_grid,
+                                                σ_grid,
+                                                w_star,
+                                                n, 
+                                                z_0, 
+                                                σ_0, 
+                                                num_reps)
+
+        return rV
+
+
+@jit(nopython=True, parallel=True)
 def T(params, w, z_grid, σ_grid, shocks):
     """ 
     Apply the operator 
@@ -95,7 +178,7 @@ def T(params, w, z_grid, σ_grid, shocks):
 
         z = z_grid[i]
 
-        for j in prange(nσ):
+        for j in range(nσ):
             σ = σ_grid[j]
 
             mf = np.exp((1 - γ) * (μ_c + z) + (1 - γ)**2 * σ**2 / 2)
@@ -114,31 +197,6 @@ def T(params, w, z_grid, σ_grid, shocks):
     return 1.0 + β * Kg**(1/θ)  # Tw
 
 
-@jit(nopython=True)
-def compute_recursive_utility(params, 
-                              z_grid, 
-                              σ_grid, 
-                              shocks, 
-                              w_init, 
-                              tol=1e-5, 
-                              max_iter=50000):
-    """
-    Solves for the fixed point of T 
-
-    """
-
-    #w = w_init
-    w = np.ones((len(z_grid), len(σ_grid)))
-
-    error = tol + 1
-    i = 1
-    while error > tol and i < max_iter:
-        w_next = T(params, w, z_grid, σ_grid, shocks)
-        error = np.max(np.abs(w - w_next))
-        i += 1
-        w = w_next
-
-    return w, i
 
 
 @jit(nopython=True)
@@ -198,63 +256,12 @@ def compute_spec_rad_given_utility(params,
 
 
 
-def compute_spec_rad(params, 
-                     w_init,
-                     z_grid, 
-                     σ_grid, 
-                     n=750, 
-                     num_reps=2000,
-                     with_sup=False):
-
-    # Unpack all params
-    β, γ, ψ, μ_c, ρ, ϕ_z, v, d, ϕ_σ, μ_d, α, ϕ_d = params
-
-    print("Solving for utility")
-    w_star, i = compute_recursive_utility(params, 
-                                          z_grid, 
-                                          σ_grid, 
-                                          shocks, 
-                                          w_init) 
-
-    print(f"Computed recursive utility in {i} iterations.")
-
-    print("Computing the spec rad")
-
-    if with_sup:
-        sup_val = -np.inf
-        for z_0 in z_grid:
-            for σ_0 in σ_grid:
-                s = compute_spec_rad_given_utility(params, 
-                                                   z_grid,
-                                                   σ_grid,
-                                                   w_star,
-                                                   n, 
-                                                   z_0, 
-                                                   σ_0, 
-                                                   num_reps)
-                sup_val = max(sup_val, s)
-        rV = sup_val
-    else:
-        z_0 = 0.0
-        σ_0 = np.sqrt(d / (1 - v))
-
-        rV = compute_spec_rad_given_utility(params, 
-                                           z_grid,
-                                           σ_grid,
-                                           w_star,
-                                           n, 
-                                           z_0, 
-                                           σ_0, 
-                                           num_reps)
-
-    return rV, w_star
-
 
 @jit(nopython=True)
 def build_grid_and_shocks(params,
                           z_grid_size,
                           σ_grid_size,
-                          mc_draw_size=2500, 
+                          mc_draw_size,
                           ts_length=8000,  # sim used when building grid
                           seed=1234):
 
